@@ -1,0 +1,119 @@
+import requests
+from pprint import pprint
+import time
+from datetime import datetime
+import json
+
+
+# Here I create a class to have access to CoinMarketCap API
+class CryptoReport:
+    def __init__(self):
+        self.url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
+        self.params = {
+            "start": "1",
+            "limit": "200",
+            "convert": "USD"
+        }
+        self.headers = {
+            "'Accepts": "application/json",
+            "X-CMC_PRO_API_KEY": "YOUR_API_KEY"
+        }
+
+    def dataRequests(self):
+        r = requests.get(url=self.url, headers=self.headers, params=self.params).json()
+        return r["data"]
+
+
+report = CryptoReport()
+
+# At this point I used a while cicle to concatenate all conditions I need
+while True:
+    now = datetime.now()
+    currencies = report.dataRequests()
+
+# First Condition: the crypto with high volume in 24h
+    max_volume = 0
+    max_volume_currency = ""
+
+    for currency in currencies:
+        if currency["quote"]["USD"]["volume_24h"] > max_volume:
+            max_volume = currency["quote"]["USD"]["volume_24h"]
+            max_volume_currency = currency["name"]
+    print("The cryptocurrency with highest volume in last 24 hours is:")
+    print(max_volume_currency, ": $", max_volume)
+
+# Second Condition: 10 best and 10 worst crypto performers in 24h using both if statement and lambda function to sort results
+    best_performers = []
+    worst_performers = []
+
+    for currency in currencies:
+        percent_change_24h = currency["quote"]["USD"]["percent_change_24h"]
+        if percent_change_24h > 0:
+            best_performers.append((currency["name"], percent_change_24h))
+        else:
+            worst_performers.append((currency["name"], percent_change_24h))
+
+    best_performers.sort(key=lambda x: x[1], reverse=True)
+    worst_performers.sort(key=lambda x: x[1])
+
+    print("\nList of the 10 best performing cryptocurrencies in last 24 hours:")
+    for i in range(10):
+        print(best_performers[i][0], ": ", best_performers[i][1], "%")
+
+    print("\nList of the 10 worst performing cryptocurrencies in last 24 hours:")
+    for i in range(10):
+        print(worst_performers[i][0], ": ", worst_performers[i][1], "%")
+
+# Third Condition: an if statement to create a list with the token price of each of the 20 first crypto
+    print("\nNecessary amount of dollar to buy each one of the first 20 cryptocurrencies sorted by market cap :")
+
+    coinName = []
+
+    for currency in currencies:
+        listAmount = currency["quote"]["USD"]["price"]
+        coinName.append(currency["name"])
+        if len(coinName) < 21:
+            print(currency["name"], ": $", listAmount)
+        else:
+            break
+
+# Fourth Condition: A filter based on volume of the cryptocurrencies in the last 24h
+    print(
+        "\nNecessary amount of dollar to buy each one of the cryptocurrencies with more than 76k of volume in the last 24h:")
+
+    for currency in currencies:
+        volumeLast = currency["quote"]["USD"]["volume_24h"]
+        if volumeLast > 76000:
+            print(currency["name"], ": $", currency["quote"]["USD"]["price"])
+
+# Fifth Condition: a list where are stored the first 20 cryptocurrencies followed by their performance in the last 24h
+    print("\nPercent of gain or loss if I would bouhgt yesterday each one of the first 20 cryptocurrencies sorted by market cap :")
+
+    late_coin_name = []
+
+    for currency in currencies:
+        late_list_amount = currency["quote"]["USD"]["percent_change_24h"]
+        late_coin_name.append(currency["name"])
+        if len(late_coin_name) < 21:
+            name = currency["name"]
+            percent_change_24h = currency["quote"]["USD"]["percent_change_24h"]
+            print(f"{name}: {percent_change_24h} %")
+        else:
+            break
+# Finally I created a dictionary to store and print a json file
+    report_data = {
+        "report_time": time.time(),
+        "max_volume_currency": max_volume_currency,
+        "best_performers": best_performers[:10],
+        "worst_performers": worst_performers[:10],
+        "coins": {currency["name"]: currency["quote"]["USD"]["price"] for currency in currencies}
+    }
+
+    with open("report_data.json", "w") as f:
+        json.dump(report_data, f)
+
+# This code always run due to the initial while cicle and return a report every 24h
+    hours = 24
+    minutes = 60 * hours
+    seconds = 60 * minutes
+    time.sleep(seconds)
